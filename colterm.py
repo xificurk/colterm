@@ -29,7 +29,7 @@ Classes:
 from __future__ import print_function
 
 __author__ = "Petr Morávek (xificurk@gmail.com)"
-__copyright__ = "Copyright (C) 2009-2010 Petr Morávek"
+__copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "GPL"
 
 __version__ = "0.5.0"
