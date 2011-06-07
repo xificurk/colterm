@@ -7,15 +7,16 @@ Variables:
     sticky_widgets  --- Mutable sequence of all sticky Widgets.
 
 Functions:
-    use_color       --- Get or set usage of colored output.
-    colorize        --- Return message in specified color.
-    change_color    --- Change color in specified stream.
-    print           --- Extension of built-in print to support colored output.
-    change_title    --- Change terminal title.
-    move_cursor     --- Move cursor x cells left/right and y cells down/up.
-    clear_data      --- Clear part of the screen.
-    prompt          --- Prompt user for an input.
-    menu            --- Let user chose from a list of options.
+    init_translation    --- Initialize gettext translation.
+    use_color           --- Get or set usage of colored output.
+    colorize            --- Return message in specified color.
+    change_color        --- Change color in specified stream.
+    print               --- Extension of built-in print to support colored output.
+    change_title        --- Change terminal title.
+    move_cursor         --- Move cursor x cells left/right and y cells down/up.
+    clear_data          --- Clear part of the screen.
+    prompt              --- Prompt user for an input.
+    menu                --- Let user chose from a list of options.
 
 Classes:
     ANSI                    --- Factory functions for supported ANSI codes.
@@ -32,7 +33,7 @@ __author__ = "Petr Morávek (xificurk@gmail.com)"
 __copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 from collections import Callable, Container, Iterable, MutableSequence
 from gettext import translation
@@ -46,8 +47,9 @@ import sys
 from threading import RLock, Thread
 from time import time, sleep
 
-__all__ = ["ANSI",
-           "colors",
+__all__ = ["colors",
+           "sticky_widgets",
+           "init_translation",
            "use_color",
            "colorize",
            "change_color",
@@ -55,18 +57,13 @@ __all__ = ["ANSI",
            "change_title",
            "move_cursor",
            "clear_data",
+           "prompt",
+           "menu",
+           "ANSI",
            "Widget",
            "MessageWidget",
            "ProgressbarWidget",
-           "sticky_widgets",
-           "prompt",
-           "menu",
            "ColoredStreamHandler"]
-
-
-_locale_dir = os.path.join(os.path.dirname(__file__), "locale")
-gt = translation("colterm", localedir=_locale_dir, codeset="utf-8", fallback=True)
-_ = gt.gettext
 
 
 _output_lock = RLock()
@@ -105,6 +102,28 @@ def _get_encoding(stream):
         return stream.encoding
     else:
         return locale.getpreferredencoding()
+
+
+############################################################
+### Gettext                                              ###
+############################################################
+
+def init_translation(localedir=None, languages=None, fallback=True):
+    """
+    Initialize gettext translation.
+
+    Arguments:
+        localedir   --- Directory with locales (see gettext.translation).
+        languages   --- List of languages (see gettext.translation).
+        fallback    --- Return a NullTranslations (see gettext.translation).
+
+    """
+    global _, gettext, ngettext
+    trans = translation("colterm", codeset="utf-8", localedir=localedir, languages=languages, fallback=fallback)
+    _ = gettext = trans.gettext
+    ngettext = trans.ngettext
+
+init_translation(localedir=os.path.join(os.path.dirname(__file__), "locale"))
 
 
 ############################################################
