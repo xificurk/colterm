@@ -1,6 +1,11 @@
 CHANGES
 ============================================================================
 
+Release 0.5.2 (2011-08-11)
+    [ADD] ProgressbarWidget can be used for displaying non-discrete
+          progress status (BC break - use update method instead of inc).
+    [ADD] Strings appended to sticky_widgets are converted to MessageWidget.
+
 Release 0.5.1 (2011-08-07)
     [CHG] Allow alternative location of translation.
 
