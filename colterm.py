@@ -33,7 +33,7 @@ __author__ = "Petr Morávek (xificurk@gmail.com)"
 __copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 from collections import Callable, Container, Iterable, MutableSequence
 from gettext import translation
@@ -84,7 +84,10 @@ if sys.version_info[0] < 3:
         elif isinstance(value, unicode):
             return value
         else:
-            return unicode(_str(value), "utf-8")
+            try:
+                return str(value.__str__())
+            except AttributeError:
+                return unicode(_str(value), "utf-8")
 
     # Fix encoding of strings before writing into streams
     def _fix_encoding(value, stream):
@@ -93,9 +96,15 @@ if sys.version_info[0] < 3:
             encoding = _get_encoding(stream)
             value = value.encode(encoding)
         return value
+
+    def is_string(value):
+        return isinstance(value, _str) or isinstance(value, unicode)
 else:
     def _fix_encoding(value, stream):
         return str(value)
+
+    def is_string(value):
+        return isinstance(value, str)
 
 def _get_encoding(stream):
     if stream.encoding is not None:
@@ -617,6 +626,14 @@ class Widget:
     Attributes:
         attached    --- Is the widget in sticky_widgets?
 
+    Methods:
+        startup     --- Called when the widget is added to sticky_widgets.
+                        This should never be called from anywhere else.
+        shutdown    --- Called when the widget is removed from sticky_widgets. Return shutdown message.
+                        This should never be called from anywhere else.
+        clear_lines --- Get number of lines to clear the old content.
+                        This should never be called from anywhere else.
+
     """
 
     @property
@@ -624,19 +641,33 @@ class Widget:
         """ Is the widget in sticky_widgets? """
         return self in sticky_widgets
 
-    _line_count = 0
-    """ Number of lines in the content. """
+    def startup(self):
+        """
+        Called when the widget is added to sticky_widgets.
 
-    _content = ""
-    """ Content to output. """
-
-    def _startup(self):
-        """ Called when the widget is added to sticky_widgets. """
+        """
         if self.attached:
             raise RuntimeError("Widget is already attached.")
 
-    def _shutdown(self):
-        """ Called when the widget is removed from sticky_widgets. Return shutdown message. """
+    def shutdown(self):
+        """
+        Called when the widget is removed from sticky_widgets. Return shutdown message.
+
+        """
+        return ""
+
+    def clear_lines(self):
+        """
+        Get number of lines to clear the old content.
+
+        """
+        return 0
+
+    def __str__(self):
+        """
+        Get the content of the widget.
+
+        """
         return ""
 
 
@@ -649,16 +680,38 @@ class MessageWidget(Widget):
     def __init__(self, message, color=""):
         """
         Arguments:
-            message     --- String message to display.
+            message     --- Message to display.
 
         Keyworder arguments:
             color       --- Color to use for displaying the message.
 
         """
+        self._message = colorize(self._normalize(message), color)
+
+    def clear_lines(self):
+        """
+        Get number of lines to clear the old content.
+
+        """
+        return self._message.count("\n")
+
+    def __str__(self):
+        """
+        Get the content of the widget.
+
+        """
+        return self._message
+
+    def _normalize(self, message):
         if not message.endswith("\n"):
             message += "\n"
-        self._content = colorize(message, color)
-        self._line_count = self._content.count("\n")
+        return str(message)
+
+    def __eq__(self, other):
+        if is_string(other):
+            return self._message == self._normalize(other)
+        else:
+            return NotImplemented
 
 
 class ProgressbarWidget(Widget):
@@ -672,37 +725,38 @@ class ProgressbarWidget(Widget):
                         mark progress.
 
     Methods:
-        inc         --- Increment counter, update message and redraw progressbar.
+        update      --- Update the progress status and redraw progressbar.
 
     """
+
+    _total = None
+    _step = _progress = 0
+    _message = _message_old = str("Starting...\n")
 
     colors = {}
     colors[0] = ANSI.color("R", True)
     colors[50] = ANSI.color("RG", True)
     colors[75] = ANSI.color("G", True)
 
-    def __init__(self, total, header="", eta=False, width=60):
+    def __init__(self, total=None, header="", eta=False, width=60):
         """
-        Arguments:
-            total       --- Total number of steps to finish.
-
         Keyworded arguments:
+            total       --- Total number of steps to finish (needed if you want to use inc method).
             header      --- Header of progressbar.
             eta         --- Display ETA - boolean.
             width       --- Width of progressbar
 
         """
-        total = int(total)
-        if total <= 0:
-            raise ValueError("Total number of steps must be greater than zero.")
-        self._total = total
-        self._step = 0
-        header = header.strip("\n")
-        if len(header) > 0:
-            header += "\n"
-        self._header = colorize(header, "header")
+        if total is not None:
+            total = int(total)
+            if total <= 0:
+                raise ValueError("Total number of steps must be greater than zero.")
+            self._total = total
+
+        self._header = colorize(self._normalize(header), "header")
         self._width = max(0, int(width))
-        self._message = self._message_old = str("Starting...\n")
+        self._eta = bool(eta)
+
         encoding = _get_encoding(sticky_widgets.stream).lower().replace("_", "-")
         if encoding in ("utf-8", "utf-16", "utf-32"):
             self.chars = (" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█")
@@ -710,57 +764,67 @@ class ProgressbarWidget(Widget):
             self.chars = (" ", "░", "▒", "▓", "█")
         else:
             self.chars = (" ", "-", "=", "#")
-        self._eta = bool(eta)
 
-    def inc(self, message=""):
+    def startup(self):
         """
-        Increment counter, update message and redraw progressbar.
-
-        Keyworded arguments:
-            message     --- Message to display.
+        Called when the widget is added to sticky_widgets.
 
         """
-        if not self.attached:
-            raise RuntimeError("Tried to increment progressbar that is not attached to sticky_widgets.")
-        with _output_lock:
-            self._step += 1
-            message = str(message).strip("\n")
+        Widget.startup(self)
+        self._time_start = time()
+        if self._eta:
+            self._time_redraw = self._time_start
+            self._eta_time = 1
+            t = Thread(target=self._eta_loop)
+            t.daemon = True
+            t.start()
+
+    def shutdown(self):
+        """
+        Called when the widget is removed from sticky_widgets. Return shutdown message.
+
+        """
+        message = ""
+        if len(self._header) > 0:
+            message = self._header.strip("\n")
+        if self._eta:
             if len(message) > 0:
-                message += "\n"
-            self._message = message
-            if self._eta:
-                self._time_step = time()
-            sticky_widgets.refresh()
-            if self._step >= self._total:
-                sticky_widgets.remove(self)
+                message += " "
+            elapsed = self._format_time(time() - self._time_start)
+            message += str("{} {}").format(str(_("finished in")), elapsed)
+        return self._normalize(message)
 
-    @property
-    def _line_count(self):
-        """ Number of lines in the content. """
+    def clear_lines(self):
+        """
+        Get number of lines to clear the old content.
+
+        """
         lines = 1 + self._header.count("\n") + self._message_old.count("\n")
         self._message_old = self._message
         return lines
 
-    @property
-    def _content(self):
-        """ Content to output. """
-        percent = min(float(self._step) / self._total, 1.0) * 100.0
+    def __str__(self):
+        """
+        Get the content of the widget.
+
+        """
+        percent = self._progress * 100
         color = ""
         for min_percent in sorted(self.colors.keys(), reverse=True):
             if percent >= min_percent:
                 color = self.colors[min_percent]
                 break
-        char_count = percent / 100.0 * self._width
+        char_count = self._progress * self._width
         progressbar = self.chars[-1] * int(char_count)
-        if percent < 100.0 and self._width >= 1:
+        if self._progress < 1 and self._width >= 1:
             char_current = int((char_count - int(char_count)) * len(self.chars))
             progressbar += self.chars[char_current] + self.chars[0] * (self._width - 1 - int(char_count))
         progressbar = str("{2}{0:5.1f}%{4} |{3}{1}{4}|").format(percent, str(progressbar), color,
                                                       colors["progressbar"], colors["reset"])
 
         if self._eta:
-            self._time_update = time()
-            if self._step > 0:
+            self._time_redraw = time()
+            if self._progress > 0:
                 self._guess_eta()
                 eta = self._format_time(self._eta_time)
             else:
@@ -769,33 +833,40 @@ class ProgressbarWidget(Widget):
         progressbar += "\n"
         return self._header + progressbar + self._message
 
-    def _startup(self):
-        """ Called when the widget is added to sticky_widgets. """
-        Widget._startup(self)
-        self._time_start = time()
-        if self._eta:
-            self._time_update = self._time_start
-            self._eta_time = 1
-            t = Thread(target=self._eta_loop)
-            t.daemon = True
-            t.start()
+    def update(self, message="", progress=1):
+        """
+        Update the progress status and redraw progressbar.
 
-    def _shutdown(self):
-        """ Called when the widget is removed from sticky_widgets. Return shutdown message. """
-        if len(self._header) > 0:
-            message = self._header.strip("\n")
+        Keyworded arguments:
+            message     --- Message to display.
+            progress    --- If total number of steps is known, increment the counter by progress steps,
+                            else set the progress to the given number.
+
+        """
+        if not self.attached:
+            raise RuntimeError("Tried to increment progressbar that is not attached to sticky_widgets.")
+        with _output_lock:
+            if self._total is None:
+                self._progress = min(1.0, float(progress))
+            else:
+                self._step += progress
+                self._progress = min(1.0, float(self._step) / self._total)
+            self._message = self._normalize(message)
             if self._eta:
-                elapsed = self._format_time(time() - self._time_start)
-                message += str(" {0} {1}").format(str(_("finished in")), elapsed)
-            return message + "\n"
-        else:
-            return ""
+                self._time_update = time()
+            sticky_widgets.refresh()
+            if self._progress >= 1:
+                sticky_widgets.remove(self)
+
+    def _normalize(self, message):
+        message = str(message).strip("\n")
+        if len(message) > 0:
+            message += "\n"
+        return message
 
     def _guess_eta(self):
-        time_last = time() - self._time_step
-        time_step = (self._time_step - self._time_start) / self._step
-        time_step += max(0, (time_last - time_step) / self._step)
-        self._eta_time = time_step * (self._total - self._step) - time_last
+        time_all = (self._time_update - self._time_start) / self._progress
+        self._eta_time = max(0, time_all - time() + self._time_start)
 
     def _format_time(self, secs):
         secs = float(secs)
@@ -807,12 +878,12 @@ class ProgressbarWidget(Widget):
 
     def _eta_loop(self):
         sleep(2)
-        while self._step <= 0 and self.attached:
+        while self._progress <= 0 and self.attached:
             sleep(2)
-        while self._step < self._total and self.attached:
+        while self._progress < 1 and self.attached:
             sleep_time = min(30, max(1, self._eta_time / 60))
-            sleep(max(0, sleep_time - time() + self._time_update))
-            if time() - self._time_update >= sleep_time:
+            sleep(max(0, sleep_time - time() + self._time_redraw))
+            if time() - self._time_redraw >= sleep_time:
                 sticky_widgets.refresh()
 
 
@@ -833,12 +904,14 @@ class _StickyWidgetsContainer(MutableSequence):
         return self._widgets.__getitem__(index)
 
     def __setitem__(self, index, value):
+        if is_string(value):
+            value = MessageWidget(value)
         if not isinstance(value, Widget):
             raise TypeError("Expected Widget instance.")
         with _output_lock:
             if self.enabled():
                 message = self._prepare_clear()
-            value._startup()
+            value.startup()
             self._widgets.__setitem__(index, value)
             if self.enabled():
                 message += self._prepare_output()
@@ -846,12 +919,14 @@ class _StickyWidgetsContainer(MutableSequence):
                 _flush(self._stream)
 
     def insert(self, index, value):
+        if is_string(value):
+            value = MessageWidget(value)
         if not isinstance(value, Widget):
             raise TypeError("Expected Widget instance.")
         with _output_lock:
             if self.enabled():
                 message = self._prepare_clear()
-            value._startup()
+            value.startup()
             self._widgets.insert(index, value)
             if self.enabled():
                 message += self._prepare_output()
@@ -863,7 +938,7 @@ class _StickyWidgetsContainer(MutableSequence):
             message = ""
             if self.enabled():
                 message = self._prepare_clear()
-            message += self._widgets.pop(index)._shutdown()
+            message += self._widgets.pop(index).shutdown()
             if self.enabled():
                 message += self._prepare_output()
             if len(message) > 0:
@@ -898,7 +973,7 @@ class _StickyWidgetsContainer(MutableSequence):
         self._cleared = True
         lines = 0
         for widget in self._widgets:
-            lines += widget._line_count
+            lines += widget.clear_lines()
         return "\r" + ANSI.move_cursor(y=-lines) + ANSI.clear_data("screen_end")
 
     def _prepare_output(self):
@@ -907,7 +982,7 @@ class _StickyWidgetsContainer(MutableSequence):
         self._cleared = False
         message = colors["reset"]
         for widget in self._widgets:
-            message += widget._content
+            message += str(widget)
         return message
 
     def clear(self, stream=None):
