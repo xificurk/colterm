@@ -33,7 +33,7 @@ __author__ = "Petr Morávek (xificurk@gmail.com)"
 __copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 from collections import Callable, Container, Iterable, MutableSequence
 from gettext import translation
