@@ -318,7 +318,7 @@ def _flush(stream):
 ### ANSI codes factories.                                ###
 ############################################################
 
-class ANSI:
+class ANSI(object):
     """
     Factory functions for supported ANSI codes.
 
@@ -619,7 +619,7 @@ def clear_data(mode, stream=None):
 ### Sticky widgets.                                      ###
 ############################################################
 
-class Widget:
+class Widget(object):
     """
     Widget interface.
 
