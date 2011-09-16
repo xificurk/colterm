@@ -33,7 +33,7 @@ __author__ = "Petr Morávek (xificurk@gmail.com)"
 __copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.5.3"
+__version__ = "0.6.0"
 
 from collections import Callable, Container, Iterable, MutableSequence
 from gettext import translation
@@ -718,13 +718,13 @@ class ProgressbarWidget(Widget):
     """
     Sticky colored progressbar widget.
 
-    Attributes:
+    Subclass attributes:
         chars       --- Tuple of characters to use for progressbar (set in __init__
                         on depending on sticky_widgets.stream.encoding).
         colors      --- Dictionary of {min_percent: color} of colors to use to
                         mark progress.
 
-    Methods:
+    Subclass methods:
         update      --- Update the progress status and redraw progressbar.
 
     """
@@ -1020,6 +1020,16 @@ class _StickyWidgetsContainer(MutableSequence):
 sticky_widgets = _StickyWidgetsContainer()
 """
 Mutable sequence of all sticky Widgets.
+
+Attributes:
+    stream      --- Stream where the widgets are printed.
+
+Methods:
+    set_stdout  --- Set widgets stream to stdout.
+    set_stderr  --- Set widgets stream to stderr.
+    clear       --- Clear widgets outout.
+    output      --- Print widgets.
+    refresh     --- Clear & print widgets.
 """
 
 
@@ -1161,14 +1171,17 @@ class ColoredStreamHandler(logging.StreamHandler):
     Output colored logging records to the stream.
 
     Subclass attributes:
-        colors      --- Dictionary of custom color codes for logging levels.
+        colors              --- Dictionary of custom color codes for logging levels.
+        exit_on_critical    --- Raise SystemExit on critical message (for BC).
 
     Subclass methods:
-        emit        --- Override the emit method of logging.StreamHandler to
-                        provide colored (depending on record.levelname) and
-                        formatted output.
+        emit                --- Override the emit method of logging.StreamHandler
+                                to provide colored (depending on record.levelname)
+                                and formatted output.
 
     """
+
+    exit_on_critical = False
 
     def __init__(self, stream=None, fmt="%(levelname)-8s %(name)-15s %(message)s", datefmt=None, colors={}):
         """
@@ -1218,7 +1231,7 @@ class ColoredStreamHandler(logging.StreamHandler):
         """
         Emit formatted (and colored if enabled) record to the stream.
 
-        If the record has lvelno >= 50, raise SystemExit(1).
+        Optionally, raise SystemExit(1), if the record has lvelno >= 50.
 
         Arguments:
             record      --- Logging record to emit.
@@ -1232,5 +1245,5 @@ class ColoredStreamHandler(logging.StreamHandler):
             raise
         except:
             pass
-        if record.levelno >= 50:
+        if self.exit_on_critical and record.levelno >= 50:
             raise SystemExit(1)
