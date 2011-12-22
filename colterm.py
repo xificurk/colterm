@@ -33,7 +33,7 @@ __author__ = "Petr Morávek (xificurk@gmail.com)"
 __copyright__ = "Copyright (C) 2009-2011 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 from collections import Callable, Container, Iterable, MutableSequence
 from gettext import translation
@@ -1074,7 +1074,7 @@ def prompt(question, indent_lvl=0, default=None, validate=None):
         message = str("{0}{1} ").format(_indentation * indent_lvl, str(question))
         if default is not None:
             message += str("[{0}] ").format(str(default))
-        if isinstance(validate, Iterable) and isinstance(validate, Container):
+        if validate not in ("BOOLEAN", "INTEGER", "DECIMAL", "ALNUM") and isinstance(validate, Iterable) and isinstance(validate, Container):
             choices = str(", ").join((str(v) for v in validate))
             message = message.format(CHOICES=choices)
         if use_color():
@@ -1085,12 +1085,7 @@ def prompt(question, indent_lvl=0, default=None, validate=None):
         if len(value) == 0 and default is not None:
             value = default
         error = None
-        if isinstance(validate, Iterable) and isinstance(validate, Container):
-            if value not in validate:
-                error = str(_("Please, input a value from {0}.")).format(choices)
-        elif isinstance(validate, Callable):
-            error = validate(value)
-        elif validate == "BOOLEAN":
+        if validate == "BOOLEAN":
             if value.lower() in (_("y"), _("yes")):
                 value = True
             elif value.lower() in (_("n"), _("no")):
@@ -1110,6 +1105,11 @@ def prompt(question, indent_lvl=0, default=None, validate=None):
         elif validate == "ALNUM":
             if not value.isalnum():
                 error = _("Please, use only alpha-numeric characters.")
+        elif isinstance(validate, Iterable) and isinstance(validate, Container):
+            if value not in validate:
+                error = str(_("Please, input a value from {0}.")).format(choices)
+        elif isinstance(validate, Callable):
+            error = validate(value)
         elif validate is not None:
             if len(value) == 0:
                 error = _("Please, input a non-empty string.")
