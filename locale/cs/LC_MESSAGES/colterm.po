@@ -1,13 +1,13 @@
 # Colterm English translation.
 # Copyright (C) 2010
-# Petr Morávek <xificurk@gmail.com>, 2010.
+# Petr Morávek <petr@pada.cz>, 2010.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: colterm-0.5.0\n"
 "POT-Creation-Date: 2010-11-28 02:42+CET\n"
 "PO-Revision-Date: 2010-11-28 02:43+0100\n"
-"Last-Translator: Petr Morávek <xificurk@gmail.com>\n"
+"Last-Translator: Petr Morávek <petr@pada.cz>\n"
 "Language-Team: Czech\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
