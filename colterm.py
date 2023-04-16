@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module for managing (colored) terminal input/output.
 
@@ -30,12 +29,12 @@ Classes:
 from __future__ import print_function
 
 __author__ = "Petr Morávek (petr@pada.cz)"
-__copyright__ = "Copyright (C) 2009-2012 Petr Morávek"
+__copyright__ = "Copyright (C) 2009-2023 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 
-from collections import Callable, Container, Iterable, MutableSequence
+from collections.abc import Callable, Container, Iterable, MutableSequence
 from gettext import translation
 import io
 import locale
@@ -68,43 +67,8 @@ __all__ = ["colors",
 
 _output_lock = RLock()
 
-
-############################################################
-### Python 2.x compatibility.                            ###
-############################################################
-
-if sys.version_info[0] < 3:
-    input = raw_input
-
-    # Redefine str to return unicode instance
-    _str = str
-    def str(value):
-        if isinstance(value, _str):
-            return value.decode("utf-8")
-        elif isinstance(value, unicode):
-            return value
-        else:
-            try:
-                return str(value.__str__())
-            except AttributeError:
-                return unicode(_str(value), "utf-8")
-
-    # Fix encoding of strings before writing into streams
-    def _fix_encoding(value, stream):
-        value = str(value)
-        if not isinstance(stream, io.TextIOBase):
-            encoding = _get_encoding(stream)
-            value = value.encode(encoding)
-        return value
-
-    def is_string(value):
-        return isinstance(value, _str) or isinstance(value, unicode)
-else:
-    def _fix_encoding(value, stream):
-        return str(value)
-
-    def is_string(value):
-        return isinstance(value, str)
+def is_string(value):
+    return isinstance(value, str)
 
 def _get_encoding(stream):
     if stream.encoding is not None:
@@ -128,7 +92,7 @@ def init_translation(localedir=None, languages=None, fallback=True):
 
     """
     global _, gettext, ngettext
-    trans = translation("colterm", codeset="utf-8", localedir=localedir, languages=languages, fallback=fallback)
+    trans = translation("colterm", localedir=localedir, languages=languages, fallback=fallback)
     _ = gettext = trans.gettext
     ngettext = trans.ngettext
 
@@ -299,14 +263,14 @@ if platform.system() == "Windows":
         else:
             if not use_color():
                 message = _re_ansi["color"].sub("", message)
-        message = _fix_encoding(message, stream)
+        message = str(message)
         stream.write(message)
 
 else:
     def _write(message, stream):
         if not use_color():
             message = _re_ansi["color"].sub("", message)
-        message = _fix_encoding(message, stream)
+        message = str(message)
         stream.write(message)
 
 def _flush(stream):
