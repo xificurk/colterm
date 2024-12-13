@@ -32,7 +32,7 @@ __author__ = "Petr Morávek (petr@pada.cz)"
 __copyright__ = "Copyright (C) 2009-2023 Petr Morávek"
 __license__ = "LGPL 3.0"
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 from collections.abc import Callable, Container, Iterable, MutableSequence
 from gettext import translation
@@ -104,10 +104,10 @@ init_translation(localedir=os.path.join(os.path.dirname(__file__), "locale"))
 ############################################################
 
 _re_ansi = {}
-_re_ansi["title"] = re.compile("\x1b\]0;(.*?)\x07")
-_re_ansi["color"] = re.compile("\x1b\[([0-9]+(;[0-9]+)*?)m")
-_re_ansi["cursor"] = re.compile("\x1b\[([0-9]*)([ABCD])")
-_re_ansi["erase"] = re.compile("\x1b\[([0-2]?)([JK])")
+_re_ansi["title"] = re.compile("\x1b\\]0;(.*?)\x07")
+_re_ansi["color"] = re.compile("\x1b\\[([0-9]+(;[0-9]+)*?)m")
+_re_ansi["cursor"] = re.compile("\x1b\\[([0-9]*)([ABCD])")
+_re_ansi["erase"] = re.compile("\x1b\\[([0-2]?)([JK])")
 
 if platform.system() == "Windows":
     from ctypes import windll, byref, Structure, c_short, c_char, c_int
@@ -1062,7 +1062,7 @@ def prompt(question, indent_lvl=0, default=None, validate=None):
             else:
                 error = _("Use only digits, please.")
         elif validate == "DECIMAL":
-            if re.match("^-?[0-9]+\.?[0-9]*$", value) is not None:
+            if re.match("^-?[0-9]+\\.?[0-9]*$", value) is not None:
                 value = float(value)
             else:
                 error = _("Please, input a decimal number.")
